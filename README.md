@@ -114,5 +114,5 @@ deep standing 30 cm proud, a step up to it, a porch roof over the doorway on two
 and a 1.2 m path running out towards the street. The door itself is a warm brown,
 deliberately not the grey of the windows, so it reads as a door from across the road.
 
-306 of the 307 houses get one. A building with no wall long enough, or too low to take
-a doorway, is skipped.
+All 307 houses get one: 307 doors, 307 stoops, 307 porch roofs and posts, 307 paths.
+Counted off the deployed page, not the local build.
