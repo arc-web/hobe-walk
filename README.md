@@ -106,3 +106,13 @@ Refresh it with:
     python3 tools/build_buildings.py
 
 Overpass times out often. The script tries three hosts and four rounds.
+
+## The front entries
+
+Every house gets a front entry, built where the door is: a stoop 2.3 m wide and 1.3 m
+deep standing 30 cm proud, a step up to it, a porch roof over the doorway on two posts,
+and a 1.2 m path running out towards the street. The door itself is a warm brown,
+deliberately not the grey of the windows, so it reads as a door from across the road.
+
+306 of the 307 houses get one. A building with no wall long enough, or too low to take
+a doorway, is skipped.

@@ -234,7 +234,7 @@ export function buildWorld(scene) {
   // outline lifted to its height; the roof is a hip over the building's own box
   // with a small overhang. Both are merged into one geometry each, so 307 houses
   // cost two draw calls.
-  const wallPos = [], roofPos = [], trimPos = [];
+  const wallPos = [], roofPos = [], trimPos = [], doorPos = [], stoopPos = [], porchPos = [], pathPos = [];
   for (const b of BUILDINGS) {
     const ring = b.pts;
     const n = ring.length;
@@ -248,7 +248,7 @@ export function buildWorld(scene) {
 
     // A hole in the wall: a rectangle standing on the wall line, lifted clear of
     // it so it never fights the wall for the same pixel.
-    const opening = (ax, az, bx, bz, at, half, y0, y1) => {
+    const opening = (ax, az, bx, bz, at, half, y0, y1, arr = trimPos) => {
       const L = Math.hypot(bx - ax, bz - az);
       if (L < 0.01) return;
       const ux = (bx - ax) / L, uz = (bz - az) / L;
@@ -258,7 +258,8 @@ export function buildWorld(scene) {
       ox = (ox / ol) * 0.07; oz = (oz / ol) * 0.07;
       const p0x = mx - ux * half + ox, p0z = mz - uz * half + oz;
       const p1x = mx + ux * half + ox, p1z = mz + uz * half + oz;
-      trimPos.push(
+      const out = arr || trimPos;
+      out.push(
         p0x, y0, p0z, p1x, y0, p1z, p1x, y1, p1z,
         p1x, y1, p1z, p0x, y1, p0z, p0x, y0, p0z,
       );
@@ -302,7 +303,41 @@ export function buildWorld(scene) {
     const doorSill = 0, doorHead = Math.min(2.05, b.w - 0.55);
     if (longest > 2.4 && doorHead > 1.5) {
       const [ax, az] = ring[li], [bx, bz] = ring[(li + 1) % n];
-      opening(ax, az, bx, bz, 0.5, 0.48, doorSill, doorHead);
+      opening(ax, az, bx, bz, 0.5, 0.48, doorSill, doorHead, doorPos);
+
+      // The front entry: a stoop to stand on, a step up to it, a small roof on
+      // two posts, and a path out to the street. This is what makes a door read
+      // as a front door rather than a dark rectangle painted on a wall.
+      const L = Math.hypot(bx - ax, bz - az) || 1;
+      const ux = (bx - ax) / L, uz = (bz - az) / L;      // along the wall
+      const mx = (ax + bx) / 2, mz = (az + bz) / 2;      // the middle of the doorway
+      let nx = mx - bcx, nz = mz - bcz;                  // out of the wall
+      const nl2 = Math.hypot(nx, nz) || 1;
+      nx /= nl2; nz /= nl2;
+
+      // A box written in the wall's own frame: out along n, sideways along u.
+      const slab = (out0, out1, side0, side1, y0, y1, arr) => {
+        const P = (o, s, y) => [mx + nx * o + ux * s, y, mz + nz * o + uz * s];
+        const c = [P(out0, side0, y0), P(out1, side0, y0), P(out1, side1, y0), P(out0, side1, y0),
+                   P(out0, side0, y1), P(out1, side0, y1), P(out1, side1, y1), P(out0, side1, y1)];
+        for (const [i, j, k] of [[4,5,6],[4,6,7],[0,1,5],[0,5,4],[1,2,6],[1,6,5],
+                                 [2,3,7],[2,7,6],[3,0,4],[3,4,7],[0,3,2],[0,2,1]]) {
+          arr.push(...c[i], ...c[j], ...c[k]);
+        }
+      };
+
+      slab(0.0, 1.30, -1.15, 1.15, 0.0, 0.30, stoopPos);        // the stoop
+      slab(1.30, 1.88, -0.75, 0.75, 0.0, 0.15, stoopPos);       // the step up to it
+      const porchTop = doorHead + 0.26;
+      slab(-0.10, 1.62, -1.45, 1.45, porchTop, porchTop + 0.16, porchPos);   // the porch roof
+      slab(1.34, 1.46, 1.28, 1.40, 0.30, porchTop, porchPos);               // post, right
+      slab(1.34, 1.46, -1.40, -1.28, 0.30, porchTop, porchPos);             // post, left
+
+      // The path runs from the step out towards the street. The door was chosen
+      // to face the nearest road, so walking out of it heads the right way.
+      const toRoad = Math.hypot(roadX - mx, roadZ - mz);
+      const pathEnd = Math.max(4.0, Math.min(22.0, toRoad));
+      slab(1.88, pathEnd, -0.60, 0.60, 0.0, 0.05, pathPos);   // 1.2 m wide, a real front path
     }
 
     // Windows along every wall that is long enough to take one, skipping the door.
@@ -357,7 +392,16 @@ export function buildWorld(scene) {
   roofs.castShadow = true; roofs.receiveShadow = true;
   const trim = new THREE.Mesh(geometryFrom(trimPos),
     new THREE.MeshLambertMaterial({ color: 0x5d6b74, side: THREE.DoubleSide }));
-  group.add(walls, roofs, trim);
+  const doors = new THREE.Mesh(geometryFrom(doorPos),
+    new THREE.MeshLambertMaterial({ color: 0x74392c, side: THREE.DoubleSide }));
+  const stoop = new THREE.Mesh(geometryFrom(stoopPos),
+    new THREE.MeshLambertMaterial({ color: 0xd6cfbd, side: THREE.DoubleSide }));
+  const porch = new THREE.Mesh(geometryFrom(porchPos),
+    new THREE.MeshLambertMaterial({ color: 0x8f6151, side: THREE.DoubleSide }));
+  const paths = new THREE.Mesh(geometryFrom(pathPos),
+    new THREE.MeshLambertMaterial({ color: 0xb0a894, side: THREE.DoubleSide }));
+  for (const m of [doors, stoop, porch, paths]) { m.castShadow = true; m.receiveShadow = true; }
+  group.add(walls, roofs, trim, doors, stoop, porch, paths);
 
   scene.add(group);
 
@@ -395,6 +439,8 @@ export function buildWorld(scene) {
       palms: palmSpots.length,
       houses: BUILDINGS.length,
       openings: trimPos.length / 18,
+      entries: stoopPos.length / 108,
+      frontDoors: doorPos.length / 18,
       water: WATER.length,
     },
   };
