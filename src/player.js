@@ -49,6 +49,8 @@ function makeLexie() {
     legs.push(leg);
   }
 
+  // She casts a shadow too, or she reads as a drawing rather than a dog.
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return { group: g, legs, tail, head };
 }
 

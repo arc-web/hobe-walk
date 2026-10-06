@@ -38,6 +38,8 @@ async function makeRenderer() {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
   }
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return { renderer, backend };
 }
 
@@ -58,7 +60,21 @@ const camera = new THREE.PerspectiveCamera(66, window.innerWidth / window.innerH
 // Florida daylight: a warm key from the south east, a cool fill from the sky.
 const sun = new THREE.DirectionalLight(0xfff1dc, 2.05);
 sun.position.set(220, 260, -160);
+// The sun casts, so the palms and the houses stand on the ground instead of
+// floating above it. The shadow camera only covers the play area, which keeps
+// the map sharp.
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -AREA_RADIUS;
+sun.shadow.camera.right = AREA_RADIUS;
+sun.shadow.camera.top = AREA_RADIUS;
+sun.shadow.camera.bottom = -AREA_RADIUS;
+sun.shadow.camera.near = 40;
+sun.shadow.camera.far = 900;
+sun.shadow.bias = -0.0012;
+sun.shadow.normalBias = 0.6;
 scene.add(sun);
+scene.add(sun.target);
 const sky = new THREE.HemisphereLight(0xcfe3ee, 0x6b6a52, 1.25);
 scene.add(sky);
 scene.add(new THREE.AmbientLight(0xffffff, 0.28));

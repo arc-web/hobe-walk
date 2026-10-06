@@ -60,9 +60,19 @@ npm run build
 python3 tools/verify.py
 ```
 
+The verifier takes the page address and the browser from the environment, so it runs
+on any machine rather than only the one it was written on:
+
+- `HOBE_URL` the page to test, by default `http://127.0.0.1:4188/`
+- `HOBE_CDP` the browser to drive, by default `http://127.0.0.1:9333`
+- `HOBE_SHOT` where to write the screenshot
+
 A note on the numbers: on a machine with no graphics chip, the page falls back to
 software rendering and reports a low frame rate. That is the machine, not the scene.
-On a machine with a graphics chip it runs on WebGPU.
+Each frame is capped at 50 milliseconds of simulated time so a stalled tab cannot
+teleport the walker, which means on a slow machine a two second walk covers less
+ground than it does at sixty frames a second. On a machine with a graphics chip it
+runs on WebGPU.
 
 ## Layout
 

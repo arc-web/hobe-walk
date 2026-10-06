@@ -1,13 +1,17 @@
 import asyncio
 import json
+import os
 from playwright.async_api import async_playwright
 
-URL = "http://127.0.0.1:4188/"
+# Both the page and the browser are configurable, so this runs on any machine
+# rather than only the one it was written on.
+URL = os.environ.get("HOBE_URL", "http://127.0.0.1:4188/")
+CDP = os.environ.get("HOBE_CDP", "http://127.0.0.1:9333")
 
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.connect_over_cdp("http://127.0.0.1:9333")
+        b = await p.chromium.connect_over_cdp(CDP)
         ctx = b.contexts[0] if b.contexts else await b.new_context()
         pg = await ctx.new_page()
         errors = []
@@ -79,7 +83,7 @@ async def main():
 
         await pg.keyboard.press("v")
         await pg.wait_for_timeout(600)
-        shot = "/opt/data/workspace/hobe-walk/verify-third-person.png"
+        shot = os.environ.get("HOBE_SHOT", "verify-third-person.png")
         await pg.screenshot(path=shot)
         print("  screenshot  :", shot)
 

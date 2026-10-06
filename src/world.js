@@ -71,12 +71,26 @@ export function buildWorld(scene) {
 
   // --- ground -------------------------------------------------------------
   // A wide, quiet green with a sandy edge, so the horizon reads as Florida.
-  const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(AREA_RADIUS + 600, 96),
-    new THREE.MeshLambertMaterial({ color: 0x5f7247 }),
-  );
-  ground.rotation.x = -Math.PI / 2;
+  // One flat green reads as a greybox. Per vertex colour noise costs nothing at
+  // runtime and every grass field in Florida is patchy, so the ground is too.
+  const span = AREA_RADIUS + 600;
+  const groundGeo = new THREE.PlaneGeometry(span * 2, span * 2, 96, 96);
+  groundGeo.rotateX(-Math.PI / 2);
+  const groundRand = rng(77123);
+  const vertexColors = [];
+  const tint = new THREE.Color();
+  for (let i = 0; i < groundGeo.attributes.position.count; i++) {
+    const v = 0.9 + groundRand() * 0.2;
+    // setRGB writes into the working space, so the values are named as sRGB and
+    // converted for us. Passing raw numbers here renders five shades too bright.
+    tint.setRGB(0.373 * v, 0.447 * v, 0.278 * v, THREE.SRGBColorSpace);
+    vertexColors.push(tint.r, tint.g, tint.b);
+  }
+  groundGeo.setAttribute("color", new THREE.Float32BufferAttribute(vertexColors, 3));
+  const ground = new THREE.Mesh(groundGeo,
+    new THREE.MeshLambertMaterial({ vertexColors: true }));
   ground.position.y = -0.02;
+  ground.receiveShadow = true;
   group.add(ground);
 
   const sand = new THREE.Mesh(
@@ -85,23 +99,33 @@ export function buildWorld(scene) {
   );
   sand.rotation.x = -Math.PI / 2;
   sand.position.y = -0.015;
+  sand.receiveShadow = true;
   group.add(sand);
 
   // --- roads --------------------------------------------------------------
   // A dark bed under every street, then a lighter crown on top of it.
-  const bedPos = [], crownPos = [], markPos = [];
+  // A street section, not a line drawn on a lawn. Each layer is wider than the
+  // one above it and sits a little lower, so the eye reads the edge of the
+  // street from any angle: mown verge, concrete sidewalk, gutter bed, road
+  // crown, then the painted edge line.
+  const lawnPos = [], walkPos = [], bedPos = [], crownPos = [], markPos = [];
   for (const r of ROADS) {
     // Trim anything far outside the play area so the far roads stay cheap.
     const near = r.pts.some(([x, z]) => Math.hypot(x, z) < AREA_RADIUS + 120);
     if (!near) continue;
-    bedPos.push(...ribbon(r.pts, ROAD_HALF + 0.9, 0.02));
-    crownPos.push(...ribbon(r.pts, ROAD_HALF, 0.05));
+    lawnPos.push(...ribbon(r.pts, ROAD_HALF + SIDEWALK + 6.4, 0.012));
+    walkPos.push(...ribbon(r.pts, ROAD_HALF + SIDEWALK, 0.03));
+    bedPos.push(...ribbon(r.pts, ROAD_HALF + 0.9, 0.045));
+    crownPos.push(...ribbon(r.pts, ROAD_HALF, 0.06));
     // A pale edge line on both sides, the way a residential street is painted.
-    if (r.pts.length > 1) markPos.push(...ribbon(r.pts, ROAD_HALF - 0.28, 0.06));
+    if (r.pts.length > 1) markPos.push(...ribbon(r.pts, ROAD_HALF - 0.28, 0.07));
   }
+  const lawn = new THREE.Mesh(geometryFrom(lawnPos), new THREE.MeshLambertMaterial({ color: 0x6f8149 }));
+  const walk = new THREE.Mesh(geometryFrom(walkPos), new THREE.MeshLambertMaterial({ color: 0xc9c3b4 }));
   const bed = new THREE.Mesh(geometryFrom(bedPos), new THREE.MeshLambertMaterial({ color: 0x4a4a46 }));
   const crown = new THREE.Mesh(geometryFrom(crownPos), new THREE.MeshLambertMaterial({ color: 0x6a6a66 }));
-  group.add(bed, crown);
+  for (const mesh of [lawn, walk, bed, crown]) mesh.receiveShadow = true;
+  group.add(lawn, walk, bed, crown);
 
   // --- water --------------------------------------------------------------
   const waterPos = [];
@@ -117,6 +141,7 @@ export function buildWorld(scene) {
   if (waterPos.length) {
     const water = new THREE.Mesh(geometryFrom(waterPos),
       new THREE.MeshLambertMaterial({ color: 0x2f6f86, transparent: true, opacity: 0.92 }));
+    water.receiveShadow = true;
     group.add(water);
   }
 
@@ -131,8 +156,10 @@ export function buildWorld(scene) {
     }
   }
   if (greenPos.length) {
-    group.add(new THREE.Mesh(geometryFrom(greenPos),
-      new THREE.MeshLambertMaterial({ color: 0x6d8348 })));
+    const greens = new THREE.Mesh(geometryFrom(greenPos),
+      new THREE.MeshLambertMaterial({ color: 0x6d8348 }));
+    greens.receiveShadow = true;
+    group.add(greens);
   }
 
   // --- palms and houses ---------------------------------------------------
@@ -183,6 +210,9 @@ export function buildWorld(scene) {
   });
   trunks.instanceMatrix.needsUpdate = true;
   fronds.instanceMatrix.needsUpdate = true;
+  // A palm without a shadow is a sticker. The shadow is what stands it up.
+  trunks.castShadow = true;
+  fronds.castShadow = true;
   group.add(trunks, fronds);
 
   // Houses: a body and a roof, matching the two-tone Florida ranch look.
@@ -204,6 +234,9 @@ export function buildWorld(scene) {
   });
   bodies.instanceMatrix.needsUpdate = true;
   roofs.instanceMatrix.needsUpdate = true;
+  bodies.castShadow = true;
+  roofs.castShadow = true;
+  bodies.receiveShadow = true;
   group.add(bodies, roofs);
 
   scene.add(group);
