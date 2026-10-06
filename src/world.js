@@ -36,9 +36,13 @@ function ribbon(points, half, lift) {
     // extend along the heading so neighbouring segments overlap at the joint
     const ex = dx * half, ez = dz * half;
     const ax = x0 - ex, az = z0 - ez, bx = x1 + ex, bz = z1 + ez;
+    // Wound so the face normal points up. The first version wound the other way,
+    // which put the normal at minus one in Y: every street triangle was a back
+    // face from above, so the whole network was culled and the roads were never
+    // drawn, even though the geometry and the vertex counts were correct.
     out.push(
-      ax + nx, lift, az + nz,  ax - nx, lift, az - nz,  bx + nx, lift, bz + nz,
-      bx + nx, lift, bz + nz,  ax - nx, lift, az - nz,  bx - nx, lift, bz - nz,
+      ax + nx, lift, az + nz,  bx + nx, lift, bz + nz,  ax - nx, lift, az - nz,
+      bx + nx, lift, bz + nz,  bx - nx, lift, bz - nz,  ax - nx, lift, az - nz,
     );
   }
   return out;
@@ -87,9 +91,18 @@ export function buildWorld(scene) {
     vertexColors.push(tint.r, tint.g, tint.b);
   }
   groundGeo.setAttribute("color", new THREE.Float32BufferAttribute(vertexColors, 3));
+  // The ground is one plane of 25 metre triangles, and the street layers sit only
+  // centimetres above it. Across triangles that large, the depth buffer cannot tell
+  // 0.08 m from nothing, and the ground wins the pixel. So the ground is dropped a
+  // little and pushed back in depth, which is what polygon offset is for.
   const ground = new THREE.Mesh(groundGeo,
-    new THREE.MeshLambertMaterial({ vertexColors: true }));
-  ground.position.y = -0.02;
+    new THREE.MeshLambertMaterial({
+      vertexColors: true,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 4,
+    }));
+  ground.position.y = -0.14;
   ground.receiveShadow = true;
   group.add(ground);
 
@@ -113,12 +126,12 @@ export function buildWorld(scene) {
     // Trim anything far outside the play area so the far roads stay cheap.
     const near = r.pts.some(([x, z]) => Math.hypot(x, z) < AREA_RADIUS + 120);
     if (!near) continue;
-    lawnPos.push(...ribbon(r.pts, ROAD_HALF + SIDEWALK + 6.4, 0.012));
-    walkPos.push(...ribbon(r.pts, ROAD_HALF + SIDEWALK, 0.03));
-    bedPos.push(...ribbon(r.pts, ROAD_HALF + 0.9, 0.045));
-    crownPos.push(...ribbon(r.pts, ROAD_HALF, 0.06));
+    lawnPos.push(...ribbon(r.pts, ROAD_HALF + SIDEWALK + 6.4, 0.02));
+    walkPos.push(...ribbon(r.pts, ROAD_HALF + SIDEWALK, 0.05));
+    bedPos.push(...ribbon(r.pts, ROAD_HALF + 0.9, 0.08));
+    crownPos.push(...ribbon(r.pts, ROAD_HALF, 0.11));
     // A pale edge line on both sides, the way a residential street is painted.
-    if (r.pts.length > 1) markPos.push(...ribbon(r.pts, ROAD_HALF - 0.28, 0.07));
+    if (r.pts.length > 1) markPos.push(...ribbon(r.pts, ROAD_HALF - 0.28, 0.13));
   }
   const lawn = new THREE.Mesh(geometryFrom(lawnPos), new THREE.MeshLambertMaterial({ color: 0x6f8149 }));
   const walk = new THREE.Mesh(geometryFrom(walkPos), new THREE.MeshLambertMaterial({ color: 0xc9c3b4 }));
@@ -140,7 +153,7 @@ export function buildWorld(scene) {
   }
   if (waterPos.length) {
     const water = new THREE.Mesh(geometryFrom(waterPos),
-      new THREE.MeshLambertMaterial({ color: 0x2f6f86, transparent: true, opacity: 0.92 }));
+      new THREE.MeshLambertMaterial({ color: 0x2f6f86, transparent: true, opacity: 0.92, side: THREE.DoubleSide }));
     water.receiveShadow = true;
     group.add(water);
   }
@@ -157,7 +170,7 @@ export function buildWorld(scene) {
   }
   if (greenPos.length) {
     const greens = new THREE.Mesh(geometryFrom(greenPos),
-      new THREE.MeshLambertMaterial({ color: 0x6d8348 }));
+      new THREE.MeshLambertMaterial({ color: 0x6d8348, side: THREE.DoubleSide }));
     greens.receiveShadow = true;
     group.add(greens);
   }

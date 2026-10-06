@@ -139,6 +139,11 @@ boot.classList.add('gone');
 window.__hobe = {
   ready: true,
   backend,
+  // The scene itself, so a check can read what is actually in it rather than
+  // judge the picture.
+  scene,
+  camera,
+  THREE,
   stats: world.stats,
   position: () => [player.rig.position.x, player.rig.position.z],
   street: () => world.streetAt(player.rig.position.x, player.rig.position.z),
