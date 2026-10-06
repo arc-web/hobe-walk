@@ -146,6 +146,9 @@ window.__hobe = {
   THREE,
   stats: world.stats,
   position: () => [player.rig.position.x, player.rig.position.z],
+  // What Lexie is thinking, so a check reads her state rather than guessing.
+  dog: () => player.dog(),
+  callDog: () => player.callDog(),
   street: () => world.streetAt(player.rig.position.x, player.rig.position.z),
   view: () => (player.thirdPerson ? 'third' : 'first'),
   toggle: () => {
