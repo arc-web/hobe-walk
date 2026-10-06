@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hobe Sound, with Lexie</title>
+<meta name="description" content="A walk through Hobe Sound, Florida, with Lexie.">
+<style>
+  :root {
+    --ink: #f4efe6;
+    --panel: rgba(14, 26, 34, 0.62);
+    --edge: rgba(244, 239, 230, 0.18);
+    --accent: #e8a15c;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1a22; }
+  body {
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--ink); -webkit-font-smoothing: antialiased;
+  }
+  canvas { display: block; }
+
+  #start {
+    position: fixed; inset: 0; z-index: 30; display: grid; place-items: center;
+    background: radial-gradient(120% 90% at 50% 10%, #23485f 0%, #0e1a22 70%);
+    transition: opacity .5s ease; padding: 24px;
+  }
+  #start.gone { opacity: 0; pointer-events: none; }
+  .card {
+    max-width: 560px; width: 100%; background: var(--panel); border: 1px solid var(--edge);
+    border-radius: 18px; padding: 34px 34px 30px; backdrop-filter: blur(14px);
+    box-shadow: 0 30px 70px rgba(0,0,0,.45);
+  }
+  .eyebrow {
+    font-size: .7rem; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 12px;
+  }
+  h1 { font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.1; margin: 0 0 14px; letter-spacing: -.02em; }
+  p { margin: 0 0 14px; color: rgba(244,239,230,.82); }
+  .keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 20px 0 24px; font-size: .92rem; }
+  .keys dt { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .keys dd { margin: 0; color: rgba(244,239,230,.75); }
+  button {
+    width: 100%; padding: 15px 20px; border-radius: 12px; border: 0; cursor: pointer;
+    background: var(--accent); color: #23180c; font: 700 1rem/1 inherit; letter-spacing: .01em;
+  }
+  button:hover { filter: brightness(1.06); }
+  button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .note { margin: 16px 0 0; font-size: .8rem; color: rgba(244,239,230,.5); }
+
+  #hud {
+    position: fixed; left: 16px; bottom: 16px; z-index: 20;
+    background: var(--panel); border: 1px solid var(--edge); border-radius: 12px;
+    padding: 10px 14px; font-size: .84rem; backdrop-filter: blur(10px); pointer-events: none;
+    opacity: 0; transition: opacity .4s ease;
+  }
+  #hud.on { opacity: 1; }
+  #street { color: var(--accent); font-weight: 700; }
+
+  #boot { position: fixed; inset: 0; display: grid; place-items: center; z-index: 40; background: #0e1a22; }
+  #boot.gone { display: none; }
+  #boot p { color: rgba(244,239,230,.7); font-size: .9rem; margin: 0; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<div id="boot"><p>Building Hobe Sound&hellip;</p></div>
+
+<div id="start">
+  <div class="card">
+    <p class="eyebrow">Hobe Sound, Florida</p>
+    <h1>A walk with Lexie</h1>
+    <p>The real streets around 7821 SE Mammoth Dr, rebuilt as a place you can walk.</p>
+    <dl class="keys">
+      <dt>W A S D</dt><dd>walk</dd>
+      <dt>Shift</dt><dd>run</dd>
+      <dt>Mouse</dt><dd>look around</dd>
+      <dt>V</dt><dd>switch between her view and yours</dd>
+      <dt>Esc</dt><dd>release the mouse</dd>
+    </dl>
+    <button id="go" type="button">Take the walk</button>
+    <p class="note">Stage one. The streets are the real ones. The houses and the palms are a first pass.</p>
+  </div>
+</div>
+
+<div id="hud">
+  <div>On <span id="street">Southeast Mammoth Drive</span></div>
+  <div id="mode" style="opacity:.7">First person</div>
+</div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

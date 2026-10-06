@@ -1,0 +1,18 @@
+{
+  "name": "hobe-walk",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A walk through Hobe Sound, Florida, with Lexie.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173 --strictPort"
+  },
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.2"
+  }
+}
