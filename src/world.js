@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ROADS, WATER, GREENS, AREA_RADIUS } from './data/streets.js';
+import { BUILDINGS } from './data/buildings.js';
 
 // ---------------------------------------------------------------------------
 // A deterministic random, so the palms and the houses land in the same place
@@ -178,7 +179,7 @@ export function buildWorld(scene) {
   // --- palms and houses ---------------------------------------------------
   // Both are placed by walking the road network, so they follow the real streets.
   const rand = rng(20261005);
-  const palmSpots = [], houseSpots = [];
+  const palmSpots = [];
   for (const r of ROADS) {
     const near = r.pts.some(([x, z]) => Math.hypot(x, z) < AREA_RADIUS);
     if (!near) continue;
@@ -197,7 +198,6 @@ export function buildWorld(scene) {
         const off = ROAD_HALF + SIDEWALK + 1.6 + rand() * 2.6;
         const px = cx + nx * off * side, pz = cz + nz * off * side;
         if (rand() < 0.42) palmSpots.push([px, pz, rand()]);
-        else if (rand() < 0.5) houseSpots.push([px, pz, Math.atan2(dx, dz), rand()]);
       }
     }
   }
@@ -228,29 +228,136 @@ export function buildWorld(scene) {
   fronds.castShadow = true;
   group.add(trunks, fronds);
 
-  // Houses: a body and a roof, matching the two-tone Florida ranch look.
-  const bodyGeo = new THREE.BoxGeometry(11, 3.6, 8.5);
-  bodyGeo.translate(0, 1.8, 0);
-  const roofGeo = new THREE.ConeGeometry(8.4, 2.2, 4);
-  roofGeo.rotateY(Math.PI / 4);
-  roofGeo.translate(0, 4.7, 0);
-  const bodies = new THREE.InstancedMesh(bodyGeo,
-    new THREE.MeshLambertMaterial({ color: 0xdfd6c4 }), houseSpots.length);
-  const roofs = new THREE.InstancedMesh(roofGeo,
-    new THREE.MeshLambertMaterial({ color: 0x9c6a56 }), houseSpots.length);
-  houseSpots.forEach(([px, pz, rot, r], i) => {
-    q.setFromEuler(new THREE.Euler(0, rot + (r - 0.5) * 0.4, 0));
-    v.set(px, 0, pz); sc.set(1, 0.85 + r * 0.4, 1);
-    m.compose(v, q, sc);
-    bodies.setMatrixAt(i, m);
-    roofs.setMatrixAt(i, m);
-  });
-  bodies.instanceMatrix.needsUpdate = true;
-  roofs.instanceMatrix.needsUpdate = true;
-  bodies.castShadow = true;
-  roofs.castShadow = true;
-  bodies.receiveShadow = true;
-  group.add(bodies, roofs);
+  // --- houses -------------------------------------------------------------
+  // Real footprints, from the OpenStreetMap building outlines for this block, so
+  // every house on the street has its own shape and its own size. Walls are the
+  // outline lifted to its height; the roof is a hip over the building's own box
+  // with a small overhang. Both are merged into one geometry each, so 307 houses
+  // cost two draw calls.
+  const wallPos = [], roofPos = [], trimPos = [];
+  for (const b of BUILDINGS) {
+    const ring = b.pts;
+    const n = ring.length;
+    if (n < 3) continue;
+
+    // Where the building's middle is. Openings are pushed out along the
+    // direction from the centre, which points outwards on every shape here.
+    let bcx = 0, bcz = 0;
+    for (const [x, z] of ring) { bcx += x; bcz += z; }
+    bcx /= n; bcz /= n;
+
+    // A hole in the wall: a rectangle standing on the wall line, lifted clear of
+    // it so it never fights the wall for the same pixel.
+    const opening = (ax, az, bx, bz, at, half, y0, y1) => {
+      const L = Math.hypot(bx - ax, bz - az);
+      if (L < 0.01) return;
+      const ux = (bx - ax) / L, uz = (bz - az) / L;
+      const mx = ax + (bx - ax) * at, mz = az + (bz - az) * at;
+      let ox = mx - bcx, oz = mz - bcz;
+      const ol = Math.hypot(ox, oz) || 1;
+      ox = (ox / ol) * 0.07; oz = (oz / ol) * 0.07;
+      const p0x = mx - ux * half + ox, p0z = mz - uz * half + oz;
+      const p1x = mx + ux * half + ox, p1z = mz + uz * half + oz;
+      trimPos.push(
+        p0x, y0, p0z, p1x, y0, p1z, p1x, y1, p1z,
+        p1x, y1, p1z, p0x, y1, p0z, p0x, y0, p0z,
+      );
+    };
+
+    // The door goes on the wall the street is in front of, not on whichever wall
+    // happens to be longest. Compare the way each wall looks out with the way the
+    // nearest road lies; the best agreement wins. The longest wall is the fallback
+    // for a building with no road within reach.
+    let longest = 0, li = 0;
+    for (let i = 0; i < n; i++) {
+      const [ax, az] = ring[i], [bx, bz] = ring[(i + 1) % n];
+      const L = Math.hypot(bx - ax, bz - az);
+      if (L > longest) { longest = L; li = i; }
+    }
+    let roadX = 0, roadZ = 0, roadD = Infinity;
+    for (const road of ROADS) {
+      for (const [rx, rz] of road.pts) {
+        const d = Math.hypot(rx - bcx, rz - bcz);
+        if (d < roadD) { roadD = d; roadX = rx; roadZ = rz; }
+      }
+    }
+    if (roadD < 70) {
+      let bestDot = -2, bestEdge = -1;
+      for (let i = 0; i < n; i++) {
+        const [ax, az] = ring[i], [bx, bz] = ring[(i + 1) % n];
+        const L = Math.hypot(bx - ax, bz - az);
+        if (L < 2.4) continue;
+        const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+        let nx = mx - bcx, nz = mz - bcz;
+        const nl = Math.hypot(nx, nz) || 1;
+        nx /= nl; nz /= nl;
+        let tx = roadX - mx, tz = roadZ - mz;
+        const tl = Math.hypot(tx, tz) || 1;
+        tx /= tl; tz /= tl;
+        const dot = nx * tx + nz * tz;
+        if (dot > bestDot) { bestDot = dot; bestEdge = i; }
+      }
+      if (bestEdge >= 0 && bestDot > 0.2) { li = bestEdge; longest = 99; }
+    }
+    const doorSill = 0, doorHead = Math.min(2.05, b.w - 0.55);
+    if (longest > 2.4 && doorHead > 1.5) {
+      const [ax, az] = ring[li], [bx, bz] = ring[(li + 1) % n];
+      opening(ax, az, bx, bz, 0.5, 0.48, doorSill, doorHead);
+    }
+
+    // Windows along every wall that is long enough to take one, skipping the door.
+    const sill = 1.05, head = Math.min(2.0, b.w - 0.5);
+    if (head - sill > 0.5) {
+      for (let i = 0; i < n; i++) {
+        const [ax, az] = ring[i], [bx, bz] = ring[(i + 1) % n];
+        const L = Math.hypot(bx - ax, bz - az);
+        if (L < 2.6) continue;
+        const count = Math.max(1, Math.floor(L / 3.4));
+        for (let k = 0; k < count; k++) {
+          const at = (k + 0.5) / count;
+          if (i === li && Math.abs(at - 0.5) < 0.22) continue;   // that is the door
+          opening(ax, az, bx, bz, at, 0.55, sill, head);
+        }
+      }
+    }
+
+    for (let i = 0; i < n; i++) {
+      const [x0, z0] = ring[i];
+      const [x1, z1] = ring[(i + 1) % n];
+      wallPos.push(
+        x0, 0, z0, x1, 0, z1, x1, b.w, z1,
+        x1, b.w, z1, x0, b.w, z0, x0, 0, z0,
+      );
+    }
+
+    let minx = Infinity, maxx = -Infinity, minz = Infinity, maxz = -Infinity;
+    for (const [x, z] of ring) {
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (z < minz) minz = z; if (z > maxz) maxz = z;
+    }
+    const o = 0.4;                       // eave overhang
+    const x0 = minx - o, x1 = maxx + o, z0 = minz - o, z1 = maxz + o;
+    const rx = (x0 + x1) / 2, rz = (z0 + z1) / 2;
+    const top = b.w + b.r;
+    const corners = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+    for (let i = 0; i < 4; i++) {
+      const [ax, az] = corners[i];
+      const [bx, bz] = corners[(i + 1) % 4];
+      roofPos.push(ax, b.w, az, bx, b.w, bz, rx, top, rz);
+    }
+  }
+
+  // The ring winding is OpenStreetMap's, not ours, so both faces are drawn: this
+  // is the same trap that left every road invisible when the winding was assumed.
+  const walls = new THREE.Mesh(geometryFrom(wallPos),
+    new THREE.MeshLambertMaterial({ color: 0xe2d9c6, side: THREE.DoubleSide }));
+  const roofs = new THREE.Mesh(geometryFrom(roofPos),
+    new THREE.MeshLambertMaterial({ color: 0x9c6a56, side: THREE.DoubleSide }));
+  walls.castShadow = true; walls.receiveShadow = true;
+  roofs.castShadow = true; roofs.receiveShadow = true;
+  const trim = new THREE.Mesh(geometryFrom(trimPos),
+    new THREE.MeshLambertMaterial({ color: 0x5d6b74, side: THREE.DoubleSide }));
+  group.add(walls, roofs, trim);
 
   scene.add(group);
 
@@ -286,7 +393,8 @@ export function buildWorld(scene) {
       roads: ROADS.length,
       namedRoads: new Set(ROADS.filter((r) => r.name).map((r) => r.name)).size,
       palms: palmSpots.length,
-      houses: houseSpots.length,
+      houses: BUILDINGS.length,
+      openings: trimPos.length / 18,
       water: WATER.length,
     },
   };

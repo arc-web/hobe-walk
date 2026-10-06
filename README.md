@@ -82,3 +82,27 @@ runs on WebGPU.
 - `src/data/streets.js` the generated street data.
 - `tools/build_streets.py` regenerates the street data.
 - `tools/verify.py` checks the built page in a real browser.
+
+## The houses
+
+The houses are not hand-placed. `tools/build_buildings.py` fetches the real building
+outlines around the house from OpenStreetMap (most of them carry
+`source=microsoft/BuildingFootprints`) and writes them to `src/data/buildings.js` as
+local metres. 307 buildings came back, from 58 to 616 square metres.
+
+`src/world.js` lifts each outline into walls, puts a hip roof over the building's own
+box with a 40 cm overhang, and cuts windows into every wall long enough to take one.
+The front door goes on the wall the nearest road is in front of, found by comparing
+the way each wall looks out with the way the road lies. All of it merges into three
+meshes, so 307 houses cost three draw calls.
+
+The outlines carry no heights and no house numbers, so the height comes from the size
+of the footprint: walls 3.05 to 4.2 m, roof rise 0.95 to 1.7 m. A bigger building on
+this block is a bigger house rather than a taller one, and the small variation stops
+a street of flat roofs reading as a car park.
+
+Refresh it with:
+
+    python3 tools/build_buildings.py
+
+Overpass times out often. The script tries three hosts and four rounds.
